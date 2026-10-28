@@ -10,7 +10,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
 
-Run pip install --no-cache-dir --upgrade pip setuptools wheel && \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
 
@@ -27,7 +27,7 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin --uid 10001 appu
 
 COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
 
-COPY --chown=appuser:appuser app.py .
+COPY --chown=appuser:appuser app/app.py .
 
 USER 10001
 
