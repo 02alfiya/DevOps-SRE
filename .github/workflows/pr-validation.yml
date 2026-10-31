@@ -31,9 +31,9 @@ env:
 jobs:
   lint:
     name: Lint Code (Flake8)
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -147,7 +147,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
-          with:
-            args: >
-            - Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}
-            - Dsonar.organization=${{ secrets.SONAR_PROJECT_KEY }}
+        with:
+          args: >
+          - Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}
+          - Dsonar.organization=${{ secrets.SONAR_PROJECT_KEY }}
