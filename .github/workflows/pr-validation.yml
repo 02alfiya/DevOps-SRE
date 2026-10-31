@@ -8,8 +8,7 @@ on:                          #When to run this workflow
       - 'app/**'
       - 'test/**'
       - 'Dockerfile'
-      - 'requirements.txt'
-      - '.github/workflows/pr-validation.yml'
+  
 
   pull_request:
     branches:
@@ -37,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-      - uses: actions/setup-python@v5
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -50,7 +49,7 @@ jobs:
         run: |
           flake8 app/app.py --count --select=E9,F63,F7,F82 --show-source --statistics             #Check for syntax errors and undefined names(will fail)
 
-          flake8 app/ --count --statistics --max-line-length=88 || true                             #Check all violations (report only, don't fail)
+          flake8 app/ --count --statistics --max-line-length=88                           #Check all violations (report only, don't fail)
       # If linting fails, entire workflow stops here
 
   
@@ -61,6 +60,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip' #Cache pip packages between runs 
