@@ -1,4 +1,50 @@
+# Version control
 .git
+.gitignore
+.github
+
+# Python cache and virtual environments
 __pycache__
+.pytest_cache
+.tox
+.venv
+venv
+env
 *.pyc
+*.pyo
+*.pyd
+*.egg-info
+dist
+build
+.eggs
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+README.md
+docs/
+
+# CI/CD and workflow files
+.github/workflows
+.gitlab-ci.yml
+Jenkinsfile
+
+# Local development
 .env
+.env.local
+*.log
+
+# Testing reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Build artifacts
+*.tar.gz
+*.zip

@@ -1,0 +1,153 @@
+name: PR Validation Pipeline
+
+on:                          #When to run this workflow
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'app/**'
+      - 'test/**'
+      - 'Dockerfile'
+      - 'requirements.txt'
+      - '.github/workflows/pr-validation.yml'
+
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'app/**'
+      - 'test/**'
+      - 'Dockerfile'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint Code (Flake8)
+    runs-on: ubuntu:latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Flake8
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Lint app.py with Flake8
+        run: |
+          flake8 app/app.py --count --select=E9,F63,F7,F82 --show-source --statistics             #Check for syntax errors and undefined names(will fail)
+
+          flake8 app/app.py --count --statistics --max-line-length=88                             #Check all violations (report only, don't fail)
+      # If linting fails, entire workflow stops here
+
+  
+  test:
+    name: Run Unit Tests (pytest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' #Cache pip packages between runs 
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r app/requirements.txt
+
+      - name: Run pytest tests
+        run: |
+          pytest test/ -v --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-results
+          path: test/
+
+
+  #Build Docker Image
+
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-bbuildx-action@v2
+
+      - name: Build Docker image  
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: memory-app:latest
+
+  secret-scan:
+    name: Secret Scanning (Trivy)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run Trivy Secret Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'              # filesystem scan
+          scan-ref: './app'            # scan only code(ignores venv, .git)
+          scanners: 'secret'           # secret scanning only (this job)
+          severities: 'CRITICAL,HIGH'  # only real secrets fail the build
+          exit-code: '1'   
+
+  sast:
+    name: SAST Security Scan (SonarQube)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+          with:
+            args: >
+            - Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}
+            - Dsonar.organization=${{ secrets.SONAR_PROJECT_KEY }}
