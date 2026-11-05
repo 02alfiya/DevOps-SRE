@@ -1,35 +1,23 @@
-name: PR Validation Pipeline
+name: PR Validation
 
-on:                          #When to run this workflow
-  push:
-    branches:
-      - '**'
-    paths:
-      - 'app/**'
-      - 'test/**'
-      - 'Dockerfile'
-  
-
+# Runs ONLY when a pull request targets main.
+# No "push" trigger (avoids duplicate runs).
+# No "paths" filter (a skipped workflow leaves required checks "Pending" forever).
+on:
   pull_request:
-    branches:
-      - main
-      - master
-    paths:
-      - 'app/**'
-      - 'test/**'
-      - 'Dockerfile'
+    branches: [main]
 
-  workflow_dispatch:
-
+# Least privilege: this workflow only needs to read the code.
 permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.12"
+  PYTHON_VERSION: "3.12"   # keep equal to the FROM version in the Dockerfile
+  IMAGE_NAME: memory-app
 
 jobs:
   lint:
-    name: Lint Code (Flake8)
+    name: Lint (Flake8)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -39,107 +27,118 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
-      - name: Install Flake8
-        run: |
-          pip install --only-binary :all: --require-hashes -r requirements.txt
-          pip install --only-binary :all: -r requirements.txt && pip install flake8
+      - name: Install dev tools
+        run: pip install -r requirements-dev.txt
 
-      - name: Lint app.py with Flake8
-        run: |
-          flake8 app/app.py --count --select=E9,F63,F7,F82 --show-source --statistics             #Check for syntax errors and undefined names(will fail)
+      - name: Fail on syntax errors and undefined names
+        run: flake8 app test --count --select=E9,F63,F7,F82 --show-source --statistics
 
-          flake8 app/ --count --statistics --max-line-length=88                           #Check all violations (report only, don't fail)
-      # If linting fails, entire workflow stops here
+      - name: Fail on any style violation
+        run: flake8 app test --count --statistics
 
-  
   test:
-    name: Run Unit Tests (pytest)
+    name: Unit Tests (pytest)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip' #Cache pip packages between runs 
-      
-      - name: Install dependencies
-        run: |
-          pip install --only-binary :all: --require-hashes -r requirements.txt
-          pip install -r app/requirements.txt
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
-      - name: Run pytest tests
-        run: |
-          pytest test/ -v --tb=short
+      - name: Install dev tools
+        run: pip install -r requirements-dev.txt
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
+      - name: Run tests
+        run: pytest test -v --tb=short --junitxml=test-results/junit.xml
+
+      - name: Upload test report
+        if: always()   # upload the report even when tests fail
+        uses: actions/upload-artifact@v4
         with:
           name: pytest-results
-          path: test/
+          path: test-results/junit.xml
 
-
-  #Build Docker Image
-
-  docker-build:
-    name: Build Docker Image
+  sast:
+    name: SAST (Bandit)
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dev tools
+        run: pip install -r requirements-dev.txt
+
+      # -r: scan recursively. -ll: fail on MEDIUM and HIGH findings.
+      # The 0.0.0.0 finding (B104) is accepted inline in app.py with a reason.
+      - name: Run Bandit
+        run: bandit -r app -ll
+
+  secret-scan:
+    name: Secret Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem secret scan
+        uses: aquasecurity/trivy-action@0.28.0   # check the Marketplace for the latest tag
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+  dockerfile-lint:
+    name: Dockerfile Lint (Hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+  build-and-scan:
+    name: Build & Scan Image (Trivy)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image  
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+      - name: Build image (not pushed)
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
-          tags: memory-app:pr-${{ github.event.number || github.run_number }}
+          load: true   # put the image into the runner's Docker so Trivy can scan it
+          tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}
 
-  secret-scan:
-    name: Secret Scanning (Trivy)
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Scan image for OS and Python package CVEs
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          fetch-depth: 0
-      
-      - name: Run Trivy Secret Scan
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
-        with:
-          scan-type: 'fs'              # filesystem scan
-          scan-ref: './app'            # scan only code(ignores venv, .git)
-          scanners: 'secret'           # secret scanning only (this job)
-          severities: 'CRITICAL,HIGH'  # only real secrets fail the build
-          exit-code: '1'   
-
-  sast:
-    name: SAST Security Scan (SonarQube)
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: SonarCloud scan
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+          image-ref: ${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true   # only fail on vulnerabilities that have a fix
+          exit-code: "1"
