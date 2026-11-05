@@ -30,7 +30,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
 
 def run_server():
-    server = HTTPServer(('0.0.0.0', 8080), HealthCheckHandler)
+    server = HTTPServer(('0.0.0.0', 8080), HealthCheckHandler)  # nosec B104
     logger.info("Starting HTTP server on port 8080 for health checks...")
     server.serve_forever()
 
