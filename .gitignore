@@ -1,69 +1,50 @@
-# Git Ignore File - What NOT to upload to GitHub
-
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Testing
+build/
+dist/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+.coverage.*
 htmlcov/
-.tox/
-.hypothesis/
-*.cover
-.nose*
 
-# IDEs
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+
+# ---- Test and scan outputs ----
+test-results/
+junit.xml
+bandit-report.*
+*.sarif
+trivy-report.*
+
+# ---- Local tooling ----
+.act/
+
+# ---- Secrets and credentials (never commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+kubeconfig
+*.kubeconfig
+
+# ---- Editors and OS ----
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-.DS_Store
-*.sublime-project
-*.sublime-workspace
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Logs
-*.log
-logs/
-
-# Docker
-.dockerignore
-docker-compose.override.yml
-
-# Git
-.git/
-.gitdir
-
-# OS
 .DS_Store
 Thumbs.db
+
+# ---- Logs ----
+*.log
