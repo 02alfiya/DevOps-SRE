@@ -1,0 +1,4 @@
+# CI and local development tools. These are NOT installed into the container image.
+flake8==7.1.1
+pytest==8.3.4
+bandit==1.7.10
