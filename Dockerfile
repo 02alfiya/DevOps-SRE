@@ -10,8 +10,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY app/requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --require-hashes -r requirements.txt pip setuptools wheel && \
+    pip install --only-binary :all: -r requirements.txt
 
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
